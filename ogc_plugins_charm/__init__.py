@@ -1,9 +1,3 @@
-"""
----
-targets: ['docs/plugins/charm.md']
----
-"""
-
 import os
 import click
 import sys
@@ -17,25 +11,92 @@ from ogc.state import app
 from ogc.spec import SpecPlugin, SpecProcessException
 from . import api
 
+__version__ = "1.0.0"
+__author__ = "Adam Stokes"
+__author_email__ = "adam.stokes@gmail.com"
+__maintainer__ = "Adam Stokes"
+__maintainer_email__ = "adam.stokes@gmail.com"
+__plugin_name__ = "ogc-plugins-charmstore"
+__description__ = "ogc-plugins-charmstore, a ogc plugin for interacting with juju charmstore"
+__git_repo__ = "https://github.com/battlemidget/ogc-plugin-charmstore"
+__example__ = """
 
-class Charm(SpecPlugin):
+## Example 1
 
-    friendly_name = "OGC Charm Plugin"
-    description = "Charm plugin for building Juju charms and bundles"
+```yaml
+plan:
+  - charmstore:
+      charms:
+        description: |
+          Builds the charms that make up Kubernetes
+        env-requires:
+          - CHARM_BUILD_DIR
+          - CHARM_LAYERS_DIR
+          - CHARM_INTERFACES_DIR
+          - CHARM_CACHE_DIR
+          - CHARM_BRANCH
+          - FILTER_BY_TAG
+          - LAYER_BRANCH
+          - LAYER_INDEX
+          - LAYER_LIST
+          - CHARM_LIST
+          - RESOURCE_SPEC
+          - BUNDLE_LIST
+          - BUNDLE_REPO
+          - TO_CHANNEL
+          - TMPDIR
+          - WORKSPACE
+        script: |
+          #!/bin/bash
+          set -eux
+          python3 charms.py build --charm-list "$CHARM_LIST" \
+            --charm-branch "$CHARM_BRANCH" \
+            --to-channel "$TO_CHANNEL" \
+            --resource-spec "$RESOURCE_SPEC" \
+            --filter-by-tag "$FILTER_BY_TAG" \
+            --layer-index  "$LAYER_INDEX" \
+            --layer-list "$LAYER_LIST" \
+            --layer-branch "$LAYER_BRANCH"
+      tags = [build-charms]
+  - charmstore:
+      bundles:
+        description: |
+          Buildes the bundles that make up Kubernetes
+        env-requires:
+          - FILTER_BY_TAG
+          - BUNDLE_LIST
+          - BUNDLE_REPO
+          - TO_CHANNEL
+          - TMPDIR
+          - WORKSPACE
+        script: |
+          #!/bin/bash
+          set -eux
+          python3 charms.py build-bundles \
+            --to-channel "$TO_CHANNEL" \
+            --bundle-list "$BUNDLE_LIST" \
+            --filter-by-tag "$FILTER_BY_TAG"
+      tags: [build-bundles]
+```
+"""
+
+class CharmStore(SpecPlugin):
+
+    friendly_name = "OGC CharmStore Plugin"
 
     options = [
         {
-            "key": "charms.charm_branch",
+            "key": "charms.charm-branch",
             "required": True,
             "description": "GIT branch of the charm to build from",
         },
         {
-            "key": "charms.to_channel",
+            "key": "charms.to-channel",
             "required": True,
             "description": "Charmstore channel to publish built charm to",
         },
         {
-            "key": "charms.filter_by_tag",
+            "key": "charms.filter-by-tag",
             "required": False,
             "description": "Build tag to filter by, (ie. k8s or general)",
         },
@@ -45,22 +106,22 @@ class Charm(SpecPlugin):
             "description": "Path to a yaml list of charms to build",
         },
         {
-            "key": "charms.resource_spec",
+            "key": "charms.resource-spec",
             "required": False,
             "description": "Path to yaml list resource specifications when building charm resources",
         },
         {
-            "key": "charms.layer_index",
+            "key": "charms.layer-index",
             "required": False,
             "description": "Path to public layer index",
         },
         {
-            "key": "charms.layer_list",
+            "key": "charms.layer-list",
             "required": False,
             "description": "Path to yaml list of layers to cache prior to a charm build",
         },
         {
-            "key": "charms.layer_branch",
+            "key": "charms.layer-branch",
             "required": False,
             "description": "GIT Branch to build layers from",
         },
@@ -71,11 +132,14 @@ class Charm(SpecPlugin):
         },
         {"key": "bundles.repo", "required": False, "description": "GIT Bundle repo"},
         {
-            "key": "bundles.filter_by_tag",
+            "key": "bundles.filter-by-tag",
             "required": False,
             "description": "Build tag to filter by, (ie. k8s or general)",
         },
     ]
+
+    def __str__(self):
+        return __description__
 
     def conflicts(self):
         if self.get_plugin_option("bundles") and not self.get_plugin_option(
@@ -85,29 +149,24 @@ class Charm(SpecPlugin):
                 "Must have a bundles.list defined to use with the bundle builder."
             )
 
-    def _g(self, key):
-        """ get plugin option
-        """
-        return self.get_plugin_option(key)
-
     def process(self):
         app.log.debug("Processing charm")
-        build_charms = self._g("charms")
-        build_bundles = self._g("bundles")
+        build_charms = self.opt("charms")
+        build_bundles = self.opt("bundles")
 
         # Charm Build options
-        charm_list = self._g("charms.list")
-        layer_list = self._g("charms.layer_list")
-        layer_index = self._g("charms.layer_index")
-        charm_branch = self._g("charms.charm_branch")
-        layer_branch = self._g("charms.layer_branch")
-        resource_spec = self._g("charms.resource_spec")
-        filter_by_tag = self._g("charms.filter_by_tag")
-        to_channel = self._g("charms.to_channel")
+        charm_list = self.opt("charms.list")
+        layer_list = self.opt("charms.layer-list")
+        layer_index = self.opt("charms.layer-index")
+        charm_branch = self.opt("charms.charm-branch")
+        layer_branch = self.opt("charms.layer-branch")
+        resource_spec = self.opt("charms.resource-spec")
+        filter_by_tag = self.opt("charms.filter-by-tag")
+        to_channel = self.opt("charms.to-channel")
 
         # Bundle Build options
-        bundle_list = self._g("bundles.list")
-        bundle_repo = self._g("bundles.repo")
+        bundle_list = self.opt("bundles.list")
+        bundle_repo = self.opt("bundles.repo")
 
         if build_charms:
             app.log.info("Building charms")
@@ -128,36 +187,5 @@ class Charm(SpecPlugin):
                 bundle_list, filter_by_tag, bundle_repo, to_channel, dry_run=False
             )
 
-    @classmethod
-    def doc_example(cls):
-        return textwrap.dedent(
-            """
-        ## Example
 
-        ```toml
-        [Charm]
-        name = "Building Charms"
-        description = \"\"\"
-        Build the charms that make up a Juju bundle
-        \"\"\"
-
-        [Charm.charms]
-        charm_branch = "master"
-        filter_by_tag = "k8s"
-        layer_branch = "master"
-        layer_index = "https://charmed-kubernetes.github.io/layer-index/"
-        layer_list = "builders/charms/charm-layer-list.yaml"
-        list = "builders/charms/charm-support-matrix.yaml"
-        resource_spec = "builders/charms/resource-spec.yaml"
-        to_channel = "edge"
-
-        [Charm.bundles]
-        filter_by_tag = "k8s"
-        bundle_list = "builders/charms/charm-bundles-list.yaml"
-        deps = ["snap:charm/latest/edge:classic"]
-        ```
-        """
-        )
-
-
-__class_plugin_obj__ = Charm
+__class_plugin_obj__ = CharmStore
